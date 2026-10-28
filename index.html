@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>写経型学習ツール</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<script src="ChromaSDKImpl.js"></script>
+    <script src="KeyboardEffects.js"></script>
+    <script type="text/javascript">
+        var chromaSDK = new ChromaSDK();
+    </script>
+</head>
+<body onload="chromaSDK.init()" onunload="chromaSDK.uninit()">
+    <!-- ヘッダー -->
+    <header class="app-header">
+        <div class="header-content">
+            <div class="logo">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                    <path d="M8 8L16 4L24 8L16 12L8 8Z" fill="currentColor" opacity="0.6"/>
+                    <path d="M8 16L16 12L24 16L16 20L8 16Z" fill="currentColor" opacity="0.8"/>
+                    <path d="M8 24L16 20L24 24L16 28L8 24Z" fill="currentColor"/>
+                </svg>
+                <h1>写経型学習ツール</h1>
+            </div>
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span id="status-text">準備完了</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- メインコンテナ -->
+    <main class="container">
+        <!-- コントロールパネル -->
+        <section class="control-panel">
+            <div class="control-card">
+                <div class="card-header">
+                    <h2>セットアップ</h2>
+                    <div class="card-icon">⚙️</div>
+                </div>
+                <div class="card-body">
+                    <div class="input-group">
+                        <label for="username">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M8 8a3 3 0 100-6 3 3 0 000 6zm0 2c-2.67 0-8 1.34-8 4v1h16v-1c0-2.66-5.33-4-8-4z"/>
+                            </svg>
+                            ユーザー名
+                        </label>
+                        <input type="text" id="username" placeholder="例: tanaka" class="text-input">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="file">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M9 0H4a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V5l-5-5zm0 1.5L12.5 5H10a1 1 0 01-1-1V1.5z"/>
+                            </svg>
+                            ソースコード
+                        </label>
+                        <div class="file-input-wrapper">
+                            <input type="file" id="file" class="file-input">
+                            <button class="file-button" onclick="document.getElementById('file').click()">
+                                <span id="file-label">ファイルを選択</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <circle cx="3.5" cy="8" r="3"/>
+                                <circle cx="9.5" cy="8" r="2" opacity="0.6"/>
+                                <circle cx="14" cy="8" r="1.5" opacity="0.3"/>
+                            </svg>
+                            キー点灯設定
+                        </label>
+                        <div class="light-settings">
+                            <div class="light-row">
+                                <input type="checkbox" id="enable-0" checked onchange="previewEnabled[0] = this.checked">
+                                <label for="enable-0" class="light-row-label">0個先（現在）</label>
+                                <input type="color" class="color-picker" value="#ff0000" onchange="previewColors[0] = hexToBGR(this.value)">
+                            </div>
+                            <div class="light-row">
+                                <input type="checkbox" id="enable-1" checked onchange="previewEnabled[1] = this.checked">
+                                <label for="enable-1" class="light-row-label">1個先</label>
+                                <input type="color" class="color-picker" value="#0000ff" onchange="previewColors[1] = hexToBGR(this.value)">
+                            </div>
+                            <div class="light-row">
+                                <input type="checkbox" id="enable-2" onchange="previewEnabled[2] = this.checked">
+                                <label for="enable-2" class="light-row-label">2個先</label>
+                                <input type="color" class="color-picker" value="#00ff00" onchange="previewColors[2] = hexToBGR(this.value)">
+                            </div>
+                            <div class="light-row">
+                                <input type="checkbox" id="enable-3" onchange="previewEnabled[3] = this.checked">
+                                <label for="enable-3" class="light-row-label">3個先</label>
+                                <input type="color" class="color-picker" value="#ffff00" onchange="previewColors[3] = hexToBGR(this.value)">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- エディターエリア -->
+        <section class="editor-section">
+            <div class="editor-container">
+                <!-- サンプルコード -->
+                <div class="editor-panel sample-panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <div class="title-icon">📖</div>
+                            <h3>サンプルコード</h3>
+                        </div>
+                        <div class="panel-badge">参照用</div>
+                    </div>
+                    <div class="editor-wrapper">
+                        <textarea id="sample" class="code-editor" readonly spellcheck="false"></textarea>
+                        <div class="line-numbers" id="sample-lines"></div>
+                    </div>
+                </div>
+
+                <!-- 写経エリア -->
+                <div class="editor-panel typing-panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <div class="title-icon">✍️</div>
+                            <h3>写経中のコード</h3>
+                        </div>
+                        <div class="panel-badge progress-badge">
+                            <span id="progress-text">0%</span>
+                        </div>
+                    </div>
+                    <div class="editor-wrapper">
+                        <textarea id="program" class="code-editor" readonly spellcheck="false"></textarea>
+                        <div class="line-numbers" id="program-lines"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- キーボードガイド -->
+            <div class="keyboard-guide">
+                <div class="guide-item">
+                    <kbd>Tab</kbd>
+                    <span>インデント</span>
+                </div>
+                <div class="guide-item">
+                    <kbd>Enter</kbd>
+                    <span>改行</span>
+                </div>
+                <div class="guide-item">
+                    <kbd>Backspace</kbd>
+                    <span>ミス修正</span>
+                </div>
+                <div class="guide-item">
+                    <kbd>Space</kbd>
+                    <span>スペース</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- フッター -->
+    <footer class="app-footer">
+        <p>Razer Chroma対応キーボードが接続されると、次のキーが光ります 💡</p>
+    </footer>
+
+    <!-- 完了モーダル -->
+    <div id="completion-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-icon">🎉</div>
+            <h2>写経完了!</h2>
+            <div class="completion-stats">
+                <div class="completion-stat">
+                    <span class="stat-label">合計時間</span>
+                    <span class="stat-value" id="final-time">-</span>
+                </div>
+                <div class="completion-stat">
+                    <span class="stat-label">WPS</span>
+                    <span class="stat-value" id="final-wps">-</span>
+                </div>
+                <div class="completion-stat">
+                    <span class="stat-label">ミス率</span>
+                    <span class="stat-value" id="final-miss-rate">-</span>
+                </div>
+            </div>
+            <p class="modal-message">結果がダウンロードされました</p>
+            <button class="modal-button" onclick="closeModal()">閉じる</button>
+        </div>
+    </div>
+
+    <script>
+        const down = [9, 8, 13];
+        let updateStatsInterval = null;
+
+        // ファイル選択処理
+        document.getElementById("file").addEventListener('change', function(e) {
+            const result = e.target.files[0];
+            if (!result) return;
+
+            document.getElementById('file-label').textContent = result.name;
+            document.getElementById('status-text').textContent = 'ファイル読込中...';
+
+            const reader = new FileReader();
+            reader.readAsText(result);
+
+            reader.addEventListener('load', function() {
+                InitTextarea(reader.result);
+                window.selectedFileName = result.name;
+                document.getElementById('status-text').textContent = '準備完了';
+                updateLineNumbers();
+            });
+        });
+
+        // キー入力処理
+        document.onkeypress = function(e) {
+            if (document.activeElement.id === "username") return;
+            if (!down.includes(e.keyCode)) InputProcess(String.fromCharCode(e.charCode));
+        };
+
+        document.onkeydown = function(e) {
+            if (document.activeElement.id === "username") return;
+
+            switch (e.keyCode) {
+                case 9:
+                    e.preventDefault();
+                    TabProcess();
+                    break;
+                case 8:
+                    e.preventDefault();
+                    MissProcess();
+                    break;
+                case 13:
+                    e.preventDefault();
+                    EnterProcess();
+                    break;
+                case 32:
+                    e.preventDefault();
+                    InputProcess(" ");
+                    break;
+                default:
+                    break;
+            }
+        };
+
+        // 統計情報の更新は完了時のみに変更
+        
+        // プログレス更新のみ継続
+        function updateProgress() {
+            if (typeof lines !== 'undefined' && lines.length > 0) {
+                const totalChars = lines.join('').length;
+                const typedChars = document.getElementById('program').value.replace('|', '').length;
+                const progress = Math.min(100, Math.round((typedChars / totalChars) * 100));
+                document.getElementById('progress-text').textContent = progress + '%';
+            }
+        }
+
+        // プログレスの定期更新
+        setInterval(updateProgress, 100);
+
+        // 行番号の更新
+        function updateLineNumbers() {
+            const sampleText = document.getElementById('sample').value;
+            const programText = document.getElementById('program').value;
+            
+            const sampleLines = sampleText.split('\n').length;
+            // カーソル | を除去してから行数をカウント
+            const programLines = programText.replace('|', '').split('\n').length;
+
+            document.getElementById('sample-lines').innerHTML = 
+                Array.from({length: sampleLines}, (_, i) => `<div>${i + 1}</div>`).join('');
+            document.getElementById('program-lines').innerHTML = 
+                Array.from({length: programLines}, (_, i) => `<div>${i + 1}</div>`).join('');
+        }
+
+        // 行番号を定期的に更新（100msごと）
+        setInterval(updateLineNumbers, 100);
+
+        // モーダル制御
+        function closeModal() {
+            document.getElementById('completion-modal').style.display = 'none';
+        }
+
+        // 元のOutput関数を拡張
+        const originalOutput = Output;
+        Output = function() {
+            originalOutput();
+            
+            // モーダル表示
+            const modal = document.getElementById('completion-modal');
+            document.getElementById('final-time').textContent = 
+                (Math.round((typingEndTime - typingStartTime) / 1000)) + '秒';
+            document.getElementById('final-wps').textContent = 
+                (totalKeyCount / ((typingEndTime - typingStartTime) / 1000)).toFixed(2);
+            document.getElementById('final-miss-rate').textContent = 
+                ((missCount / totalKeyCount) * 100).toFixed(2) + '%';
+            modal.style.display = 'flex';
+        };
+    </script>
+
+</body>
+</html>
