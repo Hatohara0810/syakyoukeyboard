@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Typing Result Visualizer</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    canvas { margin-top: 20px; }
+    #summary { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h2>Typing Data Visualizer</h2>
+  <input type="file" id="fileInput" accept=".json">
+  <div id="summary"></div>
+  <canvas id="digraphChart" width="800" height="400"></canvas>
+
+  <script>
+    document.getElementById('fileInput').addEventListener('change', function (e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.readAsText(file);
+      reader.onload = function (event) {
+        try {
+          const data = JSON.parse(event.target.result);
+          visualizeData(data);
+        } catch (err) {
+          alert('JSONの解析に失敗しました: ' + err.message);
+        }
+      };
+    });
+
+    function visualizeData(data) {
+      // === JSON形式に合わせて修正 ===
+      const digraphs = data.digraphs || [];
+      const totalTime = data.totalTime_ms || 0;
+      const wps = data.WPS || 0;
+      const missRate = data.missRate || 0;
+      const whereMiss = data.whereMissCollection || [];
+      const whatMiss = data.whatMissCollection || [];
+
+      // === 概要表示 ===
+      const summaryDiv = document.getElementById('summary');
+      summaryDiv.innerHTML = `
+        <h3>統計情報</h3>
+        <p>⏱️ 合計タイピング時間: ${(totalTime / 1000).toFixed(2)} 秒</p>
+        <p>⌨️ WPS (Word Per Second): ${wps.toFixed(2)}</p>
+        <p>❌ ミスタイプ率: ${(missRate * 100).toFixed(2)}%</p>
+        <p>📍 ミスタイプ箇所数: ${whereMiss.length}</p>
+      `;
+
+      // === ダイグラフ間隔の分布 ===
+      const labels = digraphs.map((d, i) => `${d.from}->${d.to}`);
+      const intervals = digraphs.map(d => d.interval_ms);
+
+      const ctx = document.getElementById('digraphChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'キー間隔時間 (ms)',
+            data: intervals,
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            title: {
+              display: true,
+              text: 'ダイグラフ（2キー間の時間間隔）'
+            },
+            tooltip: {
+              callbacks: {
+                label: function (context) {
+                  return `${context.parsed.y.toFixed(1)} ms`;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'ミリ秒'
+              }
+            },
+            x: {
+              ticks: {
+                maxRotation: 90,
+                minRotation: 90
+              }
+            }
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>
