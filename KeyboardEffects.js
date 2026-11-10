@@ -28,6 +28,7 @@ var backup_stat = 0;
 var tabCount = 0;
 var previewEnabled = [true, true, false, false]; // 0個先〜3個先のオン/オフ
 var previewColors  = [0x0000ff, 0xff0000, 0x00ff00, 0x00ffff]; // BGR: 赤, 青, 緑, 黄
+var currentLitKeys = []; // 現在点灯しているキーの座標リスト
 
 // === 解析用データ ===
 let typingStartTime = 0;
@@ -55,6 +56,12 @@ function InputProcess(input) {
         const now = performance.now();
         totalKeyCount++;
 
+        // === タイマー開始: 最初のキー入力時 ===
+        if (typingStartTime === 0) {
+            typingStartTime = now;
+            lastKeyTime = now;
+        }
+
         // --- ダイグラフ記録 ---
         const interval = now - lastKeyTime;
         lastKeyTime = now;
@@ -67,8 +74,119 @@ function InputProcess(input) {
         }
 
         if (input == lines[line][pos]) {
-            KeyboardClear();
             WriteProgram(lines[line][pos]);
+            if (pos < lines[line].length-1) {
+                ++pos;
+            } else if (line < lines.length) {
+                ++line;
+                pos = 0;
+                var allEmpty = true;
+                for (var j = line; j < lines.length; j++) {
+                    if (lines[j].trim() !== "") { allEmpty = false; break; }
+                }
+                if (allEmpty) {
+                    Output();
+                    return;
+                }
+                stat = 4;
+                EnterEffects();
+                CreateEffect();
+                return;
+            }
+            // 前のキーをクリアして次のキーを点灯（1回のCreateEffectで処理）
+            var prevLit = currentLitKeys.slice();
+            init();
+            currentLitKeys = [];
+            var lightUp = translate(lines[line][pos]);
+            if (previewEnabled[0]) {
+                for (r = 0; r < lightUp.length; ++r) {
+                    key[lightUp[r][0]][lightUp[r][1]] = 0x01000000 | previewColors[0];
+                    color[lightUp[r][0]][lightUp[r][1]] = previewColors[0];
+                    currentLitKeys.push([lightUp[r][0], lightUp[r][1]]);
+                }
+            }
+            // 1個先
+            if (previewEnabled[1]) {
+                var aheadPos = pos + 1;
+                if (aheadPos < lines[line].length) {
+                    var previewLightUp = translate(lines[line][aheadPos]);
+                    for (r = 0; r < previewLightUp.length; ++r) {
+                        if (key[previewLightUp[r][0]][previewLightUp[r][1]] === 0) {
+                            key[previewLightUp[r][0]][previewLightUp[r][1]] = 0x01000000 | previewColors[1];
+                            color[previewLightUp[r][0]][previewLightUp[r][1]] = previewColors[1];
+                            currentLitKeys.push([previewLightUp[r][0], previewLightUp[r][1]]);
+                        }
+                    }
+                }
+            }
+            CreateEffect();
+        } else if (stat == 4) {
+            // Enter待ち状態（stat==4）で次の行の正しい文字が入力された場合
+            // Enterキーではなく文字入力でも次に進める
+            WriteProgram(input);
+            if (pos < lines[line].length-1) {
+                ++pos;
+            } else if (line < lines.length) {
+                ++line;
+                pos = 0;
+                var allEmpty = true;
+                for (var j = line; j < lines.length; j++) {
+                    if (lines[j].trim() !== "") { allEmpty = false; break; }
+                }
+                if (allEmpty) {
+                    Output();
+                    return;
+                }
+                stat = 4;
+                EnterEffects();
+                CreateEffect();
+                return;
+            }
+            // 前のキーをクリアして次のキーを点灯
+            var prevLit = currentLitKeys.slice();
+            init();
+            currentLitKeys = [];
+            var lightUp2 = translate(lines[line][pos]);
+            if (previewEnabled[0]) {
+                for (r = 0; r < lightUp2.length; ++r) {
+                    key[lightUp2[r][0]][lightUp2[r][1]] = 0x01000000 | previewColors[0];
+                    color[lightUp2[r][0]][lightUp2[r][1]] = previewColors[0];
+                    currentLitKeys.push([lightUp2[r][0], lightUp2[r][1]]);
+                }
+            }
+            if (previewEnabled[1]) {
+                var aheadPos2 = pos + 1;
+                if (aheadPos2 < lines[line].length) {
+                    var previewLightUp2 = translate(lines[line][aheadPos2]);
+                    for (r = 0; r < previewLightUp2.length; ++r) {
+                        if (key[previewLightUp2[r][0]][previewLightUp2[r][1]] === 0) {
+                            key[previewLightUp2[r][0]][previewLightUp2[r][1]] = 0x01000000 | previewColors[1];
+                            color[previewLightUp2[r][0]][previewLightUp2[r][1]] = previewColors[1];
+                            currentLitKeys.push([previewLightUp2[r][0], previewLightUp2[r][1]]);
+                        }
+                    }
+                }
+            }
+            CreateEffect();
+        } else {
+            missCount++;
+            whereMissCollection.push({
+                line: line,
+                charIndex: pos,
+                expected: lines[line][pos]
+            });
+            whatMissCollection.push({
+                line: line,
+                charIndex: pos,
+                input: input
+            });
+            MissEffects(input);
+        }
+    } else if (stat == 4) {
+        // Enter待ち状態（次の行の先頭文字を入力待ち）
+        if (input == lines[line][pos]) {
+            // 正しい文字 → 次に進む
+            WriteProgram(input);
             if (pos < lines[line].length-1) {
                 ++pos;
             } else if (line < lines.length) {
@@ -86,8 +204,33 @@ function InputProcess(input) {
                 EnterEffects();
                 return;
             }
-            KeyboardEffects(lines[line][pos]);
+            // 前のキーをクリアして次のキーを点灯
+            init();
+            currentLitKeys = [];
+            var lightUp = translate(lines[line][pos]);
+            if (previewEnabled[0]) {
+                for (r = 0; r < lightUp.length; ++r) {
+                    key[lightUp[r][0]][lightUp[r][1]] = 0x01000000 | previewColors[0];
+                    color[lightUp[r][0]][lightUp[r][1]] = previewColors[0];
+                    currentLitKeys.push([lightUp[r][0], lightUp[r][1]]);
+                }
+            }
+            if (previewEnabled[1]) {
+                var aheadPos = pos + 1;
+                if (aheadPos < lines[line].length) {
+                    var previewLightUp = translate(lines[line][aheadPos]);
+                    for (r = 0; r < previewLightUp.length; ++r) {
+                        if (key[previewLightUp[r][0]][previewLightUp[r][1]] === 0) {
+                            key[previewLightUp[r][0]][previewLightUp[r][1]] = 0x01000000 | previewColors[1];
+                            color[previewLightUp[r][0]][previewLightUp[r][1]] = previewColors[1];
+                            currentLitKeys.push([previewLightUp[r][0], previewLightUp[r][1]]);
+                        }
+                    }
+                }
+            }
+            CreateEffect();
         } else {
+            // 間違い → MissEffects
             missCount++;
             whereMissCollection.push({
                 line: line,
@@ -198,13 +341,14 @@ function KeyboardEffects(ch) {
     var lightUp = new Array();
     init();
     lightUp = translate(ch);
-    if (lightUp.length === 0) { stat = 1; CreateEffect(); return; }
+    if (lightUp.length === 0) { stat = 1; currentLitKeys = []; CreateEffect(); return; }
 
     // 0個先（現在のキー）
     if (previewEnabled[0]) {
         for (r = 0; r < lightUp.length; ++r) {
             key[lightUp[r][0]][lightUp[r][1]] = 0x01000000 | previewColors[0];
             color[lightUp[r][0]][lightUp[r][1]] = previewColors[0];
+            currentLitKeys.push([lightUp[r][0], lightUp[r][1]]);
         }
     }
 
@@ -220,12 +364,14 @@ function KeyboardEffects(ch) {
                 if (key[previewLightUp[r][0]][previewLightUp[r][1]] === 0) {
                     key[previewLightUp[r][0]][previewLightUp[r][1]] = 0x01000000 | previewColor;
                     color[previewLightUp[r][0]][previewLightUp[r][1]] = previewColor;
+                    currentLitKeys.push([previewLightUp[r][0], previewLightUp[r][1]]);
                 }
             }
         } else if (line + 1 < lines.length) {
             if (key[3][14] === 0) {
                 key[3][14] = 0x01000000 | previewColor;
                 color[3][14] = previewColor;
+                currentLitKeys.push([3, 14]);
             }
             break;
         } else {
@@ -237,15 +383,59 @@ function KeyboardEffects(ch) {
     CreateEffect();
 }
 
+/*
+現在のキーと次のキーを一度に設定する（clear→setの問題対策）
+prevKey: 前に点灯していたキーの座標リスト（クリア用）
+nextCh: 次に点灯させる文字
+*/
+function KeyboardEffectsSequential(prevKey, nextCh) {
+    // まずprevKeyをクリア
+    if (prevKey) {
+        for (var r = 0; r < prevKey.length; ++r) {
+            key[prevKey[r][0]][prevKey[r][1]] = 0;
+            color[prevKey[r][0]][prevKey[r][1]] = 0;
+        }
+    }
+
+    // 次に点灯させるキーを設定
+    var lightUp = translate(nextCh);
+    if (previewEnabled[0]) {
+        for (var r = 0; r < lightUp.length; ++r) {
+            key[lightUp[r][0]][lightUp[r][1]] = 0x01000000 | previewColors[0];
+            color[lightUp[r][0]][lightUp[r][1]] = previewColors[0];
+        }
+    }
+
+    // 先行点灯（1個先）
+    var ahead = 1;
+    if (ahead <= 3 && previewEnabled[ahead]) {
+        var previewColor = previewColors[ahead];
+        var aheadPos = pos + ahead;
+        if (aheadPos < lines[line].length) {
+            var previewLightUp = translate(lines[line][aheadPos]);
+            for (r = 0; r < previewLightUp.length; ++r) {
+                if (key[previewLightUp[r][0]][previewLightUp[r][1]] === 0) {
+                    key[previewLightUp[r][0]][previewLightUp[r][1]] = 0x01000000 | previewColor;
+                    color[previewLightUp[r][0]][previewLightUp[r][1]] = previewColor;
+                }
+            }
+        }
+    }
+
+    CreateEffect();
+}
+
 
 /*
 Tabキーの設定
 */
 function TabEffects() {
     init();
+    currentLitKeys = [];
     if (previewEnabled[0]) {
         key[2][1] = 0x01000000 | previewColors[0];
         color[2][1] = previewColors[0];
+        currentLitKeys.push([2, 1]);
     }
 
     var remainingTabs = tabCount - 1;
@@ -264,12 +454,14 @@ function TabEffects() {
                     if (key[previewLightUp[r][0]][previewLightUp[r][1]] === 0) {
                         key[previewLightUp[r][0]][previewLightUp[r][1]] = 0x01000000 | previewColor;
                         color[previewLightUp[r][0]][previewLightUp[r][1]] = previewColor;
+                        currentLitKeys.push([previewLightUp[r][0], previewLightUp[r][1]]);
                     }
                 }
             } else {
                 if (key[3][14] === 0) {
                     key[3][14] = 0x01000000 | previewColor;
                     color[3][14] = previewColor;
+                    currentLitKeys.push([3, 14]);
                 }
                 break;
             }
@@ -289,12 +481,15 @@ function MissEffects(input) {
     WriteProgram(input);
     document.getElementById('program').style.backgroundColor = 'lightcoral';
     init();
+    currentLitKeys = [];
     key[1][15] = 0x01000000 | 0x0000ff;
+    currentLitKeys.push([1, 15]);
     // 今打つべきキー（赤）を光らせる
     var correctLightUp = translate(lines[line][pos]);
     for (r = 0; r < correctLightUp.length; ++r) {
         key[correctLightUp[r][0]][correctLightUp[r][1]] = 0x01000000 | 0xff0000;
         color[correctLightUp[r][0]][correctLightUp[r][1]] = 0xff0000;
+        currentLitKeys.push([correctLightUp[r][0], correctLightUp[r][1]]);
     }
 
     stat = 3;
@@ -306,9 +501,11 @@ Enterキーの設定
 */
 function EnterEffects() {
     init();
+    currentLitKeys = [];
     if (previewEnabled[0]) {
         key[3][14] = 0x01000000 | previewColors[0];
         color[3][14] = previewColors[0];
+        currentLitKeys.push([3, 14]);
     }
 
     if (line < lines.length && lines[line] !== "") {
@@ -325,6 +522,7 @@ function EnterEffects() {
                 if (key[2][1] === 0) {
                     key[2][1] = 0x01000000 | previewColor;
                     color[2][1] = previewColor;
+                    currentLitKeys.push([2, 1]);
                 }
             } else {
                 var charIdx = ahead - leadingTabs - 1;
@@ -334,12 +532,14 @@ function EnterEffects() {
                         if (key[previewLightUp[r][0]][previewLightUp[r][1]] === 0) {
                             key[previewLightUp[r][0]][previewLightUp[r][1]] = 0x01000000 | previewColor;
                             color[previewLightUp[r][0]][previewLightUp[r][1]] = previewColor;
+                            currentLitKeys.push([previewLightUp[r][0], previewLightUp[r][1]]);
                         }
                     }
                 } else {
                     if (key[3][14] === 0) {
                         key[3][14] = 0x01000000 | previewColor;
                         color[3][14] = previewColor;
+                        currentLitKeys.push([3, 14]);
                     }
                     break;
                 }
@@ -353,6 +553,7 @@ function EnterEffects() {
 
 function KeyboardClear() {
     init();
+    currentLitKeys = [];
     CreateEffect();
 }
 
@@ -373,7 +574,6 @@ function translate(ch) {
             index = key_list.indexOf(ch.toLowerCase());
         } else if (num_shift.includes(ch) == true) { // 数字+shift
             index = num_shift.indexOf(ch);
-            index = key_list.indexOf(num[index]);
         } else if (nes_shift.includes(ch) == true) { // 記号+shift
             index = nes_shift.indexOf(ch);
             index = key_list.indexOf(unn_shift[index]);
@@ -407,8 +607,16 @@ function init() {
 }
 
 function CreateEffect() {
-    var data = { 'color': color, 'key': key };
-    chromaSDK.createKeyboardEffect("CHROMA_CUSTOM_KEY", data);
+    if (!chromaSDK || !chromaSDK.ready) {
+        console.log('CreateEffect: SDK not ready');
+        return;
+    }
+    try {
+        var data = { 'color': color, 'key': key };
+        chromaSDK.createKeyboardEffect("CHROMA_CUSTOM_KEY", data);
+    } catch(e) {
+        console.error('CreateEffect error:', e.message);
+    }
 }
 
 function LightUp() {
@@ -423,8 +631,8 @@ function LightUp() {
         totalKeyCount = 0;
         whereMissCollection = [];
         whatMissCollection = [];
-        typingStartTime = performance.now();
-        lastKeyTime = typingStartTime;
+        typingStartTime = 0;
+        lastKeyTime = 0;
 
         document.getElementById('program').style.backgroundColor = 'white';
         document.getElementById('sample').style.backgroundColor = 'white';
@@ -477,3 +685,4 @@ function Output() {
 
     stat = 0;
 }
+
