@@ -45,47 +45,35 @@ function renderAll(data) {
 
 // ===== 概要表示 =====
 function renderSummary(data) {
-    const totalTimeSec = (data.totalTime_ms / 1000).toFixed(2);
-    const wps = typeof data.WPS === 'number' ? data.WPS.toFixed(2) : data.wps?.toFixed(2) || '0.00';
-    const missRate = (data.missRate * 100).toFixed(2);
+    const totalTimeSec = (data.totalTime_ms / 1000).toFixed(1);
+    const wps = typeof data.WPS === 'number' ? data.WPS.toFixed(1) : '0.0';
+    const missRate = (data.missRate * 100).toFixed(1);
 
-    // データ数計算
-    const digraphCount = Array.isArray(data.digraphs) ? data.digraphs.length : 0;
-    const missCount = Array.isArray(data.whereMissCollection) ? data.whereMissCollection.length : 0;
-
-    const stats = document.getElementById('stats');
-    if (stats) {
-        stats.innerHTML = `
-            <b>合計タイピング時間：</b> ${totalTimeSec} 秒<br>
-            <b>WPS：</b> ${wps} 文字/秒<br>
-            <b>ダイグラフ数：</b> ${digraphCount}<br>
-            <b>ミスタイプ率：</b> ${missRate}%<br>
-            <b>ミスタイプ数：</b> ${missCount}
+    const grid = document.getElementById('summaryGrid');
+    if (grid) {
+        grid.innerHTML = `
+            <div class="summary-card blue"><div class="value">${totalTimeSec}s</div><div class="label">合計時間</div></div>
+            <div class="summary-card green"><div class="value">${wps}</div><div class="label">WPS</div></div>
+            <div class="summary-card purple"><div class="value">${(1 - data.missRate) * 100}%</div><div class="label">正解率</div></div>
+            <div class="summary-card orange"><div class="value">${data.digraphs?.length || 0}</div><div class="label">ダイグラフ数</div></div>
+            <div class="summary-card red"><div class="value">${data.whereMissCollection?.length || 0}</div><div class="label">ミス数</div></div>
         `;
     }
 }
 
 // ===== ダイグラフ間隔グラフ =====
 function renderDigraphChart(data) {
-    const ctx = document.getElementById('digraphChart');
-    if (!ctx) return;
+    const canvas = document.getElementById('digraphChart');
+    if (!canvas) return;
 
-    // 既存チャートがあれば破棄
+    const ctx = canvas.getContext('2d');
     if (window._digraphChart) window._digraphChart.destroy();
 
     const digraphs = Array.isArray(data.digraphs) ? data.digraphs : [];
     const intervals = digraphs.map(d => d.interval_ms || d);
 
-    if (intervals.length === 0) {
-        const canvas = ctx;
-        const context = canvas.getContext('2d');
-        context.fillStyle = '#666';
-        context.font = '14px sans-serif';
-        context.fillText('ダイグラフデータがありません', 20, 40);
-        return;
-    }
+    if (intervals.length === 0) return;
 
-    // ヒストグラムビン作成 (50ms幅)
     const binWidth = 50;
     const maxVal = Math.max(...intervals);
     const bins = Math.ceil(maxVal / binWidth) + 1;
@@ -94,7 +82,7 @@ function renderDigraphChart(data) {
         const bin = Math.min(Math.floor(v / binWidth), bins - 1);
         counts[bin]++;
     });
-    const labels = counts.map((_, i) => `${i * binWidth}-${(i + 1) * binWidth}ms`);
+    const labels = counts.map((_, i) => `${i * binWidth}-${(i + 1) * binWidth}`);
 
     window._digraphChart = new Chart(ctx, {
         type: 'bar',
@@ -112,22 +100,11 @@ function renderDigraphChart(data) {
             responsive: true,
             plugins: {
                 legend: { display: false },
-                title: {
-                    display: true,
-                    text: 'ダイグラフ間隔の分布',
-                    color: '#f1f5f9',
-                    font: { size: 14 }
-                }
+                title: { display: true, text: 'ダイグラフ間隔の分布', color: '#f1f5f9', font: { size: 14 } }
             },
             scales: {
-                x: {
-                    title: { display: true, text: '間隔 (ms)' },
-                    ticks: { maxTicksLimit: 15, color: '#94a3b8' }
-                },
-                y: {
-                    title: { display: true, text: '頻度' },
-                    ticks: { stepSize: 1, color: '#94a3b8' }
-                }
+                x: { ticks: { maxTicksLimit: 15, color: '#94a3b8' }, title: { display: true, text: '間隔(ms)', color: '#94a3b8' } },
+                y: { ticks: { stepSize: 1, color: '#94a3b8' }, title: { display: true, text: '頻度', color: '#94a3b8' } }
             }
         }
     });
@@ -135,8 +112,9 @@ function renderDigraphChart(data) {
 
 // ===== 精度パイチャート =====
 function renderAccuracyChart(data) {
-    const ctx = document.getElementById('missChart');
-    if (!ctx) return;
+    const canvas = document.getElementById('accuracyChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
 
     if (window._accuracyChart) window._accuracyChart.destroy();
 
@@ -425,3 +403,4 @@ function renderMissTable(data) {
 function escapeHtml(str) {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
+
